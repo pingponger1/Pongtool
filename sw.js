@@ -1,8 +1,10 @@
-const CACHE = 'pongtool-v4';
+const CACHE = 'pongtool-v8';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './favicon.ico',
+  './favicon-32.png',
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-512.png',
