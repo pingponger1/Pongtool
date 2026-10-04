@@ -259,6 +259,56 @@
     input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
 
+    /* Spelers vergelijken */
+    .compare-toggle {
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: inherit;
+      text-align: left;
+    }
+    .compare-side {
+      background-color: #0b0e14;
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 12px;
+      height: 100%;
+    }
+    .side-a { border-top: 3px solid #3b82f6; }
+    .side-b { border-top: 3px solid #f59e0b; }
+    .color-a { color: #60a5fa; }
+    .color-b { color: #fbbf24; }
+    .win-bar {
+      display: flex;
+      height: 16px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #1e2532;
+    }
+    .win-bar-a { background: linear-gradient(90deg, #2563eb, #3b82f6); transition: width 0.4s ease; }
+    .win-bar-b { background: linear-gradient(90deg, #f59e0b, #d97706); flex: 1; }
+    .cmp-row {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.9rem;
+    }
+    .cmp-row:last-child { border-bottom: none; }
+    .cmp-row > :first-child { text-align: left; }
+    .cmp-row > :nth-child(2) {
+      text-align: center;
+      color: #64748b;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .cmp-row > :last-child { text-align: right; }
+    .pct-big { font-size: 2.1rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg-main); }
     ::-webkit-scrollbar-thumb { background: #1e2532; border-radius: 3px; }
@@ -323,7 +373,108 @@
   </div>
 
   <div class="d-flex flex-column gap-3 gap-md-4">
-    
+
+    <!-- SPELERS VERGELIJKEN -->
+    <div class="card-custom p-3 p-md-4">
+      <button type="button" class="compare-toggle w-100 d-flex align-items-center justify-content-between" @click="toggleCompare">
+        <span class="fw-bold text-white fs-5">
+          <i class="fa-solid fa-scale-balanced text-primary me-2"></i>Vergelijk twee spelers
+        </span>
+        <i class="fa-solid text-muted" :class="showCompare ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </button>
+
+      <div v-if="showCompare" class="mt-3 pt-3 border-top border-secondary border-opacity-10">
+        <p class="text-muted small mb-3">Kies twee spelers en zie wie de grootste kans heeft om een onderlinge wedstrijd te winnen. Hoe meer wedstrijden een speler heeft gespeeld, hoe meer zijn resultaten (en het daaruit berekende klassement) tellen. Bij weinig wedstrijden telt het huidige klassement.</p>
+
+        <div class="row g-3">
+          <div v-for="(z, idx) in [compareA, compareB]" :key="idx" class="col-12 col-md-6">
+            <div class="compare-side" :class="idx === 0 ? 'side-a' : 'side-b'">
+              <div class="form-label-custom" :class="idx === 0 ? 'color-a' : 'color-b'">Speler {{ idx === 0 ? 'A' : 'B' }}</div>
+              <select class="form-select mb-2" v-model="z.province" @change="cmpProvinceChange(z)" :disabled="clubsLoading">
+                <option value="">-- Provincie --</option>
+                <option v-for="prov in beschikbareProvincies" :key="prov" :value="prov">{{ prov }}</option>
+              </select>
+              <select class="form-select mb-2" v-model="z.club" @change="cmpLaadSpelers(z)" :disabled="!z.province">
+                <option :value="null">-- Club --</option>
+                <option v-for="club in clubsVoor(z)" :key="clubIdVan(club)" :value="club">{{ clubIdVan(club) }} - {{ club.name }}</option>
+              </select>
+              <select class="form-select" v-model="z.spelerId" @change="cmpSelecteerSpeler(z)" :disabled="!z.club || z.loadingSpelers">
+                <option value="">-- Speler --</option>
+                <option v-for="s in z.spelers" :key="s.id || s.uniqueIndex" :value="s.id || s.uniqueIndex">[{{ rankVan(s) }}] {{ getSpelerNaam(s) }}</option>
+              </select>
+              <div v-if="z.loadingSpelers || z.loadingResults" class="text-muted small mt-2">
+                <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>Laden...
+              </div>
+              <div v-if="z.error" class="text-danger small mt-2">{{ z.error }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center my-3">
+          <button type="button" class="btn btn-action-outline btn-sm" @click="wisselSpelers">
+            <i class="fa-solid fa-arrow-right-arrow-left me-2"></i>Wissel A en B
+          </button>
+        </div>
+
+        <div v-if="zelfdeSpeler" class="text-warning small text-center py-2">
+          <i class="fa-solid fa-triangle-exclamation me-1"></i>Kies twee verschillende spelers.
+        </div>
+
+        <div v-else-if="vergelijking">
+          <div class="d-flex justify-content-between align-items-end mb-2 gap-3">
+            <div class="text-start" style="min-width:0">
+              <div class="pct-big color-a">{{ pct(vergelijking.kansA) }}</div>
+              <div class="small text-white text-truncate mt-1">{{ vergelijking.A.naam }}</div>
+            </div>
+            <div class="text-end" style="min-width:0">
+              <div class="pct-big color-b">{{ pct(1 - vergelijking.kansA) }}</div>
+              <div class="small text-white text-truncate mt-1">{{ vergelijking.B.naam }}</div>
+            </div>
+          </div>
+          <div class="win-bar mb-2">
+            <div class="win-bar-a" :style="{ width: (vergelijking.kansA * 100) + '%' }"></div>
+            <div class="win-bar-b"></div>
+          </div>
+          <p class="text-center text-muted small mb-3">
+            <template v-if="vergelijking.favoriet"><strong class="text-white">{{ vergelijking.favoriet }}</strong> is favoriet.</template>
+            <template v-else>Geen duidelijke favoriet.</template>
+            Alleen op huidig klassement: {{ pct(vergelijking.basisA) }} – {{ pct(1 - vergelijking.basisA) }}.
+          </p>
+
+          <div class="prognose-container">
+            <div class="cmp-row">
+              <span class="fw-bold color-a">{{ vergelijking.A.rank }}</span>
+              <span>Klassement</span>
+              <span class="fw-bold color-b">{{ vergelijking.B.rank }}</span>
+            </div>
+            <div class="cmp-row">
+              <span class="fw-bold" :class="rangKleur(vergelijking.A.rank, vergelijking.A.berekend)">{{ vergelijking.A.berekend || '–' }}</span>
+              <span>Berekend</span>
+              <span class="fw-bold" :class="rangKleur(vergelijking.B.rank, vergelijking.B.berekend)">{{ vergelijking.B.berekend || '–' }}</span>
+            </div>
+            <div class="cmp-row">
+              <span class="text-white"><span class="text-success">{{ vergelijking.A.w }}W</span> - <span class="text-danger">{{ vergelijking.A.l }}L</span> <span class="text-muted">({{ vergelijking.A.winrate }}%)</span></span>
+              <span>Seizoen</span>
+              <span class="text-white"><span class="text-success">{{ vergelijking.B.w }}W</span> - <span class="text-danger">{{ vergelijking.B.l }}L</span> <span class="text-muted">({{ vergelijking.B.winrate }}%)</span></span>
+            </div>
+            <div class="cmp-row">
+              <span class="text-white">{{ vergelijking.A.n ? fmtPct((vergelijking.A.w - vergelijking.A.verwacht) / vergelijking.A.n * 100) : '–' }}</span>
+              <span>Winrate t.o.v. verwachting</span>
+              <span class="text-white">{{ vergelijking.B.n ? fmtPct((vergelijking.B.w - vergelijking.B.verwacht) / vergelijking.B.n * 100) : '–' }}</span>
+            </div>
+            <div class="cmp-row">
+              <span :class="vormKleur(vergelijking.A.delta)">{{ vormLabel(vergelijking.A) }}</span>
+              <span>Vorm</span>
+              <span :class="vormKleur(vergelijking.B.delta)">{{ vormLabel(vergelijking.B) }}</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div v-else class="text-muted text-center small py-2">Kies bij beide spelers een club en speler om de kans te berekenen.</div>
+      </div>
+    </div>
+
     <!-- SIMULATIE RESULTAAT -->
     <div class="card-custom p-3 p-md-4">
       <h5 class="fw-bold text-white mb-3 pb-2 border-bottom border-secondary border-opacity-10 d-flex align-items-center justify-content-between">
@@ -469,6 +620,96 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(console.error);
   });
 }
+
+// <PONG-MODEL>
+// Winkansmodel (Elo-achtig):
+//  1. Elk klassement is een "trap" op een ladder. Eén trap = STAP Elo-punten.
+//     Winkans = 1 / (1 + 10^(-verschil/400)).
+//  2. Vorm: uit de resultaten van dit seizoen berekenen we welke Elo-correctie
+//     nodig is om het aantal gewonnen wedstrijden te verklaren, rekening houdend
+//     met de klassementen van de tegenstanders. Die correctie wordt afgezwakt
+//     (shrinkage) bij weinig wedstrijden en begrensd op VORM_MAX.
+//  3. Anker: het door de Pongtool berekende klassement (zelfde berekening als de
+//     simulator) is het officiële oordeel over de resultaten. Het dient als anker:
+//     de vorm (gemeten t.o.v. het HUIDIGE klassement) mag daar maximaal
+//     ANKER_RUIMTE van afwijken. Zo tellen resultaten niet dubbel (eenmaal via het
+//     berekende klassement en eenmaal via de vorm). Bij weinig wedstrijden schuift
+//     het anker geleidelijk naar het huidige klassement (zelfde weging als de vorm).
+const PONG = (() => {
+  const STAP = 80;               // Elo-punten per klassementstrap
+  const VORM_PRIOR = 12;         // bij 12 wedstrijden wegen resultaten en klassement even zwaar
+  const VORM_MAX = 2 * STAP;     // maximale correctie door vorm: 2 trappen
+  const ANKER_RUIMTE = STAP / 2; // vorm mag max. een halve trap van het berekende klassement afwijken
+  const weging = (n) => (n * n) / (n * n + VORM_PRIOR * VORM_PRIOR);
+  const MIN_KANS = 0.01;
+  const MAX_KANS = 0.99;
+
+  const kans = (verschil) => 1 / (1 + Math.pow(10, -verschil / 400));
+  const klem = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+
+  const maak = (lijst) => {
+    const idx = (rank) => {
+      let i = lijst.indexOf(rank);
+      if (i < 0) i = lijst.length - 1;     // onbekend = laagste
+      return rank === 'A' ? i - 1 : i;      // A staat een extra trap boven B0
+    };
+    const rating = (rank) => -idx(rank) * STAP;
+
+    const vorm = (rank, rijen) => {
+      const eigen = rating(rank);
+      const lijstRijen = (rijen || [])
+        .map(r => ({ ranking: r.ranking, g: Number(r.gewonnen) || 0, v: Number(r.verloren) || 0 }))
+        .filter(r => r.g + r.v > 0);
+      const n = lijstRijen.reduce((s, r) => s + r.g + r.v, 0);
+      const w = lijstRijen.reduce((s, r) => s + r.g, 0);
+      if (n === 0) return { n: 0, w: 0, l: 0, verwacht: 0, raw: 0, delta: 0 };
+
+      const verwacht = (delta) => lijstRijen.reduce(
+        (s, r) => s + (r.g + r.v) * kans(eigen + delta - rating(r.ranking)), 0);
+
+      // zoek delta waarvoor verwachte winst == werkelijke winst (bisectie)
+      let lo = -800, hi = 800;
+      for (let i = 0; i < 50; i++) {
+        const mid = (lo + hi) / 2;
+        if (verwacht(mid) < w) lo = mid; else hi = mid;
+      }
+      const raw = klem((lo + hi) / 2, -2 * VORM_MAX, 2 * VORM_MAX); // 100%/0% winst mag niet exploderen
+      const delta = klem(raw * weging(n), -VORM_MAX, VORM_MAX);
+      return { n, w, l: n - w, verwacht: verwacht(0), raw, delta, ruw: raw * weging(n) };
+    };
+
+    // Sterkte van een speler in Elo-punten t.o.v. zijn huidige klassement.
+    //  - zonder berekend klassement: enkel de vorm
+    //  - met berekend klassement: de vorm, maar binnen ANKER_RUIMTE van het (afgezwakte) anker
+    const sterkte = (rank, rijen, berekend) => {
+      const v = vorm(rank, rijen);
+      let s = v.delta;
+      let anker = null;
+      if (berekend && lijst.includes(berekend) && v.n > 0) {
+        anker = weging(v.n) * (rating(berekend) - rating(rank));
+        // ruwe (niet op VORM_MAX afgekapte) vorm gebruiken, anders kan het anker nooit verder dan 2 trappen reiken
+        s = klem(v.ruw, anker - ANKER_RUIMTE, anker + ANKER_RUIMTE);
+      }
+      return { ...v, anker, sterkte: s };
+    };
+
+    // Dichtstbijzijnd klassement bij rank + sterkte (voor weergave)
+    const niveau = (rank, s) => {
+      const e = Math.round(idx(rank) - s / STAP);
+      return e <= 0 ? lijst[0] : lijst[Math.min(e, lijst.length - 1)];
+    };
+
+    const winkans = (rankA, deltaA, rankB, deltaB) => {
+      const verschil = (rating(rankA) + deltaA) - (rating(rankB) + deltaB);
+      return klem(kans(verschil), MIN_KANS, MAX_KANS);
+    };
+    const basisKans = (rankA, rankB) => klem(kans(rating(rankA) - rating(rankB)), MIN_KANS, MAX_KANS);
+
+    return { rating, vorm, sterkte, niveau, winkans, basisKans };
+  };
+  return { STAP, VORM_MAX, ANKER_RUIMTE, weging, kans, maak };
+})();
+// </PONG-MODEL>
 
 const { createApp, ref, computed, onMounted, watch } = Vue;
 
@@ -628,6 +869,17 @@ createApp({
       }
     };
 
+    const sorteerSpelers = (data) => data.sort((a, b) => {
+      const rankA = a.klassement || a.ranking || 'NG';
+      const rankB = b.klassement || b.ranking || 'NG';
+      const indexA = alleKlassementen.value.indexOf(rankA);
+      const indexB = alleKlassementen.value.indexOf(rankB);
+      const posA = indexA !== -1 ? indexA : 999;
+      const posB = indexB !== -1 ? indexB : 999;
+      if (posA !== posB) return posA - posB;
+      return getAchternaamVoorSorteer(a).localeCompare(getAchternaamVoorSorteer(b), 'nl', { sensitivity: 'base' });
+    });
+
     const laadSpelersVanClubSilent = async () => {
       if (!selectedClubObject.value) return;
       const clubId = selectedClubObject.value.code || selectedClubObject.value.uniqueIndex || selectedClubObject.value.id;
@@ -640,16 +892,7 @@ createApp({
         const res = await fetch(url);
         if (!res.ok) throw new Error();
         const data = await res.json();
-        spelerLijst.value = data.sort((a, b) => {
-          const rankA = a.klassement || a.ranking || 'NG';
-          const rankB = b.klassement || b.ranking || 'NG';
-          const indexA = alleKlassementen.value.indexOf(rankA);
-          const indexB = alleKlassementen.value.indexOf(rankB);
-          const posA = indexA !== -1 ? indexA : 999;
-          const posB = indexB !== -1 ? indexB : 999;
-          if (posA !== posB) return posA - posB;
-          return getAchternaamVoorSorteer(a).localeCompare(getAchternaamVoorSorteer(b), 'nl', { sensitivity: 'base' });
-        });
+        spelerLijst.value = sorteerSpelers(data);
       } catch (err) {
         console.error(err);
       } finally {
@@ -749,7 +992,191 @@ createApp({
       }
     };
 
+    // ===== Spelers vergelijken =====
+    const showCompare = ref(false);
+    const maakZijde = () => ({
+      province: '', club: null, spelers: [], spelerId: '',
+      loadingSpelers: false, loadingResults: false, resultaten: null, berekend: null, error: null
+    });
+    const compareA = ref(maakZijde());
+    const compareB = ref(maakZijde());
+    const model = computed(() => PONG.maak(alleKlassementen.value));
+
+    const clubIdVan = (club) => club ? (club.code || club.uniqueIndex || club.id) : '';
+    const rankVan = (speler) => {
+      const r = speler && (speler.klassement || speler.ranking);
+      return r && alleKlassementen.value.includes(r) ? r : 'NG';
+    };
+    const clubsVoor = (z) => z.province
+      ? clubLijst.value.filter(c => c.categoryName === z.province).sort((a, b) => a.name.localeCompare(b.name))
+      : [];
+    const cmpSpeler = (z) => z.spelers.find(s => (s.id || s.uniqueIndex) === z.spelerId);
+
+    const cmpProvinceChange = (z) => {
+      z.club = null; z.spelers = []; z.spelerId = ''; z.resultaten = null; z.berekend = null; z.error = null;
+    };
+
+    const cmpLaadSpelers = async (z) => {
+      z.spelerId = ''; z.spelers = []; z.resultaten = null; z.berekend = null; z.error = null;
+      const clubId = clubIdVan(z.club);
+      if (!clubId) return;
+      z.loadingSpelers = true;
+      try {
+        const res = await fetch(`https://ttcsintpauwels.be/api/frenoy/${selectedLeague.value}/clubs/${clubId}/players`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (clubIdVan(z.club) === clubId) z.spelers = sorteerSpelers(data);
+      } catch (err) {
+        console.error(err);
+        z.error = 'Kon de spelers niet ophalen.';
+      } finally {
+        z.loadingSpelers = false;
+      }
+    };
+
+    // Resultaten per klassement van de tegenstander samenvoegen (zelfde opbouw als de simulator)
+    const bundelResultaten = (data) => {
+      const rijen = standaardLijst.value.map(kl => ({ ranking: kl, gewonnen: 0, verloren: 0 }));
+      if (Array.isArray(data)) {
+        data.forEach(item => {
+          const opp = item.ranking || item.opponentRanking;
+          if (!opp || !alleKlassementen.value.includes(opp)) return;
+          let t = rijen.find(r => r.ranking === opp);
+          if (!t) { t = { ranking: opp, gewonnen: 0, verloren: 0 }; rijen.push(t); }
+          t.gewonnen += (item.gewonnen || item.won || 0);
+          t.verloren += (item.verloren || item.lost || 0);
+        });
+      }
+      return rijen.sort((a, b) => alleKlassementen.value.indexOf(a.ranking) - alleKlassementen.value.indexOf(b.ranking));
+    };
+
+    // Berekend klassement via dezelfde klassementsberekening als de simulator
+    const haalBerekendKlassement = async (rank, rijen) => {
+      const res = await fetch(`https://ttcsintpauwels.be/api/klassementsberekening/${selectedLeague.value}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentRanking: rank,
+          resultaten: rijen.map(r => ({ ranking: r.ranking, gewonnen: Number(r.gewonnen) || 0, verloren: Number(r.verloren) || 0 }))
+        })
+      });
+      if (!res.ok) throw new Error('API fout');
+      const out = await res.json();
+      return out && alleKlassementen.value.includes(out.resultaat) ? out.resultaat : null;
+    };
+
+    const cmpSelecteerSpeler = async (z) => {
+      z.resultaten = null; z.berekend = null; z.error = null;
+      const id = z.spelerId;
+      if (!id) return;
+      z.loadingResults = true;
+      try {
+        const res = await fetch(`https://ttcsintpauwels.be/api/frenoy/${selectedLeague.value}/players/${id}/results`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (z.spelerId !== id) return;
+        const rijen = bundelResultaten(data);
+        // Berekend klassement ophalen; lukt dat niet, dan rekenen we met het huidige klassement
+        let berekend = null;
+        const totaal = rijen.reduce((s, r) => s + (Number(r.gewonnen) || 0) + (Number(r.verloren) || 0), 0);
+        const speler = cmpSpeler(z);
+        if (totaal > 0 && speler) {
+          try { berekend = await haalBerekendKlassement(rankVan(speler), rijen); }
+          catch (err) { console.error(err); }
+        }
+        if (z.spelerId === id) { z.berekend = berekend; z.resultaten = rijen; }
+      } catch (err) {
+        console.error(err);
+        if (z.spelerId === id) z.error = 'Kon de resultaten niet ophalen.';
+      } finally {
+        z.loadingResults = false;
+      }
+    };
+
+    const zijdeData = (z) => {
+      const s = cmpSpeler(z);
+      if (!s || !z.resultaten) return null;
+      const rank = rankVan(s);
+      const v = model.value.sterkte(rank, z.resultaten, z.berekend);
+      return {
+        naam: getSpelerNaam(s), rank, berekend: z.berekend, ...v,
+        winrate: v.n ? Math.round((v.w / v.n) * 100) : 0
+      };
+    };
+
+    const zelfdeSpeler = computed(() =>
+      !!compareA.value.spelerId && compareA.value.spelerId === compareB.value.spelerId);
+
+    const vergelijking = computed(() => {
+      if (zelfdeSpeler.value) return null;
+      const A = zijdeData(compareA.value);
+      const B = zijdeData(compareB.value);
+      if (!A || !B) return null;
+      const kansA = model.value.winkans(A.rank, A.sterkte, B.rank, B.sterkte);
+      const basisA = model.value.basisKans(A.rank, B.rank);
+      const favoriet = Math.abs(kansA - 0.5) < 0.02 ? null : (kansA > 0.5 ? A.naam : B.naam);
+      return { A, B, kansA, basisA, favoriet };
+    });
+
+    const wisselSpelers = () => {
+      const t = compareA.value;
+      compareA.value = compareB.value;
+      compareB.value = t;
+    };
+
+    const resetCompare = () => {
+      compareA.value = maakZijde();
+      compareB.value = maakZijde();
+    };
+
+    const toggleCompare = () => {
+      showCompare.value = !showCompare.value;
+      // Speler A voorinvullen met de speler uit de simulator
+      if (showCompare.value && !compareA.value.spelerId && selectedSpelerId.value && selectedClubObject.value) {
+        const z = compareA.value;
+        z.province = selectedProvince.value;
+        z.club = clubLijst.value.find(c => clubIdVan(c) === clubIdVan(selectedClubObject.value)) || selectedClubObject.value;
+        z.spelers = [...spelerLijst.value];
+        z.spelerId = selectedSpelerId.value;
+        cmpSelecteerSpeler(z);
+      }
+    };
+
+    const pct = (p) => {
+      const x = p * 100;
+      return (x < 10 || x > 90 ? x.toFixed(1) : String(Math.round(x))).replace('.', ',') + '%';
+    };
+    const fmtPct = (x) => (x >= 0.5 ? '+' : x <= -0.5 ? '−' : '') + Math.abs(Math.round(x)) + '%';
+    const fmt1 = (x) => (x > 0.049 ? '+' : x < -0.049 ? '−' : '') + Math.abs(x).toFixed(1).replace('.', ',');
+    const vormLabel = (d) => {
+      if (!d.n) return 'Geen data';
+      if (d.n < 5) return 'Weinig data';
+      const trap = d.delta / PONG.STAP;
+      let label = 'Normaal';
+      if (trap >= 1.5) label = 'Uitstekend';
+      else if (trap >= 0.75) label = 'Zeer sterk';
+      else if (trap >= 0.3) label = 'Goed';
+      else if (trap <= -0.75) label = 'Zwak';
+      else if (trap <= -0.3) label = 'Mager';
+      return `${label} (${fmt1(trap)})`;
+    };
+    const rangKleur = (huidig, berekend) => {
+      if (!berekend) return 'text-muted';
+      const h = alleKlassementen.value.indexOf(huidig);
+      const b = alleKlassementen.value.indexOf(berekend);
+      if (b < h) return 'text-success';   // hoger klassement
+      if (b > h) return 'text-danger';    // lager klassement
+      return 'text-white';
+    };
+    const vormKleur = (delta) => {
+      if (delta >= 1.5 * PONG.STAP) return 'text-success fw-bold';
+      if (delta >= 0.3 * PONG.STAP) return 'text-success';
+      if (delta <= -0.3 * PONG.STAP) return 'text-danger';
+      return 'text-white';
+    };
+
     const switchLeague = async (league) => {
+      resetCompare();
       selectedLeague.value = league;
       selectedProvince.value = '';
       selectedClubObject.value = null;
@@ -762,6 +1189,7 @@ createApp({
     };
 
     const resetAlles = () => {
+      resetCompare();
       selectedProvince.value = '';
       selectedClubObject.value = null;
       selectedSpelerId.value = '';
@@ -815,7 +1243,26 @@ createApp({
       pasAan,
       startHold,
       stopHold,
-      resetAlles
+      resetAlles,
+      showCompare,
+      compareA,
+      compareB,
+      toggleCompare,
+      cmpProvinceChange,
+      cmpLaadSpelers,
+      cmpSelecteerSpeler,
+      clubsVoor,
+      clubIdVan,
+      rankVan,
+      vergelijking,
+      zelfdeSpeler,
+      wisselSpelers,
+      pct,
+      fmt1,
+      fmtPct,
+      vormLabel,
+      vormKleur,
+      rangKleur
     };
   }
 }).mount('#app');
