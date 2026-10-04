@@ -662,7 +662,7 @@ const PONG = (() => {
         .filter(r => r.g + r.v > 0);
       const n = lijstRijen.reduce((s, r) => s + r.g + r.v, 0);
       const w = lijstRijen.reduce((s, r) => s + r.g, 0);
-      if (n === 0) return { n: 0, w: 0, l: 0, verwacht: 0, raw: 0, delta: 0 };
+      if (n === 0) return { n: 0, w: 0, l: 0, verwacht: 0, raw: 0, delta: 0, neff: 0 };
 
       const verwacht = (delta) => lijstRijen.reduce(
         (s, r) => s + (r.g + r.v) * kans(eigen + delta - rating(r.ranking)), 0);
@@ -674,8 +674,14 @@ const PONG = (() => {
         if (verwacht(mid) < w) lo = mid; else hi = mid;
       }
       const raw = klem((lo + hi) / 2, -2 * VORM_MAX, 2 * VORM_MAX); // 100%/0% winst mag niet exploderen
-      const delta = klem(raw * weging(n), -VORM_MAX, VORM_MAX);
-      return { n, w, l: n - w, verwacht: verwacht(0), raw, delta, ruw: raw * weging(n) };
+      // Effectief aantal wedstrijden: een wedstrijd bij ~50% winkans zegt veel over het niveau,
+      // een wedstrijd tegen veel hogere of veel lagere tegenstanders (kans richting 0% of 100%) bijna niets.
+      const neff = lijstRijen.reduce((s, r) => {
+        const p = kans(eigen - rating(r.ranking));
+        return s + (r.g + r.v) * 4 * p * (1 - p);
+      }, 0);
+      const delta = klem(raw * weging(neff), -VORM_MAX, VORM_MAX);
+      return { n, w, l: n - w, verwacht: verwacht(0), raw, delta, ruw: raw * weging(neff), neff };
     };
 
     // Sterkte van een speler in Elo-punten t.o.v. zijn huidige klassement.
@@ -686,7 +692,7 @@ const PONG = (() => {
       let s = v.delta;
       let anker = null;
       if (berekend && lijst.includes(berekend) && v.n > 0) {
-        anker = weging(v.n) * (rating(berekend) - rating(rank));
+        anker = weging(v.neff) * (rating(berekend) - rating(rank));
         // ruwe (niet op VORM_MAX afgekapte) vorm gebruiken, anders kan het anker nooit verder dan 2 trappen reiken
         s = klem(v.ruw, anker - ANKER_RUIMTE, anker + ANKER_RUIMTE);
       }
