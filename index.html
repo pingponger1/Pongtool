@@ -170,6 +170,7 @@
   .stats-inline strong { font-weight:800; }
   .stats-winrate { color:var(--muted); }
   .filter-toggle { display:inline-flex; align-items:center; gap:7px; padding:.48rem .78rem; white-space:nowrap; }
+  .min-w-0 { min-width:0; }
   .filter-toggle.active { color:#dfe7f2; background:#111925; border-color:#2d3b50; }
   .filter-dot { width:7px;height:7px;border-radius:50%;background:#4a586c; }
   .filter-toggle.active .filter-dot { background:var(--accent); box-shadow:0 0 0 3px rgba(79,140,255,.12); }
@@ -245,7 +246,7 @@
     .cmp-row > :nth-child(2) { font-size:.56rem; letter-spacing:.065em; }
     .cmp-row > :first-child, .cmp-row > :last-child { font-size:.75rem; }
     .matches-head { align-items:flex-start; }
-    .filter-toggle { align-self:flex-start; }
+    .filter-toggle { padding:.4rem .62rem; font-size:.72rem; gap:6px; }
   }
 
   @media (max-width: 420px) {
@@ -472,8 +473,8 @@
 
     <!-- GESPEELDE MATCHEN -->
     <div class="card-custom p-3 p-md-4">
-      <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-3 pb-3 border-bottom border-secondary border-opacity-10">
-        <div>
+      <div class="d-flex flex-row justify-content-between align-items-center gap-2 mb-3 pb-3 border-bottom border-secondary border-opacity-10">
+        <div class="min-w-0">
           <div class="section-eyebrow">Wedstrijddata</div>
           <h5 class="section-title mt-1">Gespeelde matchen</h5>
           <div class="stats-inline">
@@ -482,9 +483,9 @@
           </div>
         </div>
         
-        <button class="filter-toggle align-self-start align-self-sm-center" :class="{ active: alleenActief }" @click="toggleAlleenActief">
+        <button class="filter-toggle flex-shrink-0" :class="{ active: alleenActief }" @click="toggleAlleenActief">
           <span class="filter-dot"></span>
-          <span>{{ alleenActief ? 'Toon lege rijen' : 'Verberg lege rijen' }}</span>
+          <span>{{ alleenActief ? 'Lege rijen tonen' : 'Lege rijen verbergen' }}</span>
         </button>
       </div>
 

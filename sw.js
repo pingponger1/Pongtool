@@ -1,4 +1,4 @@
-const CACHE = 'pongtool-v8';
+const CACHE = 'pongtool-v9';
 const APP_SHELL = [
   './',
   './index.html',
