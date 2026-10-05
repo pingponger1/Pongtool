@@ -57,7 +57,10 @@
     touch-action: manipulation;
   }
 
-  .app-container { max-width: 820px; margin: 0 auto; padding-left:12px !important; padding-right:12px !important; }
+  /* Boven/onder extra ruimte voor statusbalk/notch als de app schermvullend draait (0 in een gewone browser).
+     Op #app/.app-container, want Bootstrap's py-3 op <body> is !important. */
+  .app-container { max-width: 820px; margin: 0 auto; padding-left:12px !important; padding-right:12px !important;
+                   padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
   .app-stack { display:flex; flex-direction:column; gap:16px; margin-top:16px; }
   .app-stack > .card-custom { margin:0 !important; }
   .app-container > .card-custom { margin:0 !important; }
@@ -104,7 +107,7 @@
     letter-spacing:.095em; font-weight:800; margin:0 0 6px 2px;
   }
   .form-control, .form-select {
-    background:#090e15 !important;
+    background-color:#090e15 !important; /* niet 'background': dat wist het pijltje van de keuzelijst */
     border:1px solid var(--line) !important;
     color:#f6f8fb !important;
     border-radius:11px !important;
@@ -176,7 +179,7 @@
      dus de kolomkoppen staan op elke schermbreedte precies boven de vakjes. */
   .wl-table { --wl-rank:44px; --wl-gap:10px; --wl-btn:36px; --wl-h:38px; display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
   .wl-table, .wl-table *, .wl-table *::before, .wl-table *::after { box-sizing:border-box; }
-  .wl-row { display:grid; grid-template-columns:var(--wl-rank) minmax(0,1fr) minmax(0,1fr); column-gap:var(--wl-gap); align-items:center; padding:7px 5px 7px 8px; border:1px solid transparent; border-radius:11px; }
+  .wl-row { display:grid; grid-template-columns:var(--wl-rank) minmax(0,1fr) minmax(0,1fr); column-gap:var(--wl-gap); align-items:center; padding:7px 8px; border:1px solid transparent; border-radius:11px; }
   .wl-head { padding-top:0; padding-bottom:0; margin-bottom:-4px; }
   .wl-item { background:#0a0f17; border-color:var(--line); transition:background .15s ease, border-color .15s ease; }
   .wl-item:hover { border-color:#2a374a; background:#0c121b; }
@@ -210,17 +213,16 @@
     .wl-table { --wl-gap:14px; --wl-btn:40px; }
   }
 
-  .empty-note { padding:22px 12px; text-align:center; color:var(--muted); font-size:.76rem; }
+  .empty-note { padding:22px 12px; text-align:center; color:var(--muted); font-size:.76rem; line-height:1.5; }
+  .empty-link { color:var(--accent); text-decoration:none; font-weight:700; }
+  .empty-link:hover { text-decoration:underline; }
 
-  /* Mobiel: voorkom afbrekende waarden in Head-to-Head en vaste score-informatie. */
+  /* Head-to-head: waarden en labels mogen op smalle schermen netjes naar een tweede regel
+     springen; afkappen of in de buurkolom lopen is erger dan een extra regel. */
   .cmp-row > * { min-width: 0; }
   .cmp-row > :first-child,
-  .cmp-row > :last-child { white-space: nowrap; }
-  .cmp-row > :nth-child(2) { white-space: nowrap; }
-  .cmp-row > :first-child,
-  .cmp-row > :last-child { overflow: hidden; text-overflow: ellipsis; }
-  .cmp-row > :first-child,
-  .cmp-row > :last-child { font-variant-numeric: tabular-nums; }
+  .cmp-row > :last-child { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; line-height: 1.3; }
+  .cmp-row > :nth-child(2) { line-height: 1.25; overflow-wrap: break-word; }
   .stats-inline { white-space: nowrap; }
   .favorite-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -259,7 +261,6 @@
     }
     .cmp-row > :nth-child(2) { font-size:.51rem; letter-spacing:.04em; }
     .cmp-row > :first-child, .cmp-row > :last-child { font-size:.70rem; }
-    .cmp-row > :first-child, .cmp-row > :last-child { overflow:visible; text-overflow:clip; }
   }
 
   ::-webkit-scrollbar { width:6px; }
@@ -311,7 +312,7 @@
         <div class="field-label">Speler</div>
         <select class="form-select" v-model="selectedSpelerId" @change="selecteerSpeler" :disabled="!selectedClubObject || spelersLoading">
           <option value="">Selecteer speler</option>
-          <option v-for="speler in spelerLijst" :key="speler.id || speler.uniqueIndex" :value="speler.id || speler.uniqueIndex">
+          <option v-for="speler in spelerLijst" :key="spelerIdVan(speler)" :value="spelerIdVan(speler)">
             [{{ speler.klassement || speler.ranking || 'NG' }}] {{ getSpelerNaam(speler) }}
           </option>
         </select>
@@ -324,7 +325,7 @@
 
     <!-- SPELERS VERGELIJKEN -->
     <div class="card-custom p-3 p-md-4">
-      <button type="button" class="compare-toggle w-100" @click="toggleCompare">
+      <button type="button" class="compare-toggle w-100" :aria-expanded="showCompare ? 'true' : 'false'" @click="toggleCompare">
         <div class="compare-toggle-head">
           <div class="compare-heading">
             <div class="icon-chip"><i class="fa-solid fa-scale-balanced"></i></div>
@@ -353,7 +354,7 @@
               </select>
               <select class="form-select" v-model="z.spelerId" @change="cmpSelecteerSpeler(z)" :disabled="!z.club || z.loadingSpelers">
                 <option value="">-- Speler --</option>
-                <option v-for="s in z.spelers" :key="s.id || s.uniqueIndex" :value="s.id || s.uniqueIndex">[{{ rankVan(s) }}] {{ getSpelerNaam(s) }}</option>
+                <option v-for="s in z.spelers" :key="spelerIdVan(s)" :value="spelerIdVan(s)">[{{ rankVan(s) }}] {{ getSpelerNaam(s) }}</option>
               </select>
               <div v-if="z.loadingSpelers || z.loadingResults" class="text-muted small mt-2">
                 <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>Laden...
@@ -376,11 +377,11 @@
         <div v-else-if="vergelijking">
           <div class="d-flex justify-content-between align-items-end mb-2 gap-3">
             <div class="text-start" style="min-width:0">
-              <div class="pct-big color-a">{{ pct(vergelijking.kansA) }}</div>
+              <div class="pct-big color-a">{{ vergelijking.pctA }}</div>
               <div class="small text-white text-truncate mt-1">{{ vergelijking.A.naam }}</div>
             </div>
             <div class="text-end" style="min-width:0">
-              <div class="pct-big color-b">{{ pct(1 - vergelijking.kansA) }}</div>
+              <div class="pct-big color-b">{{ vergelijking.pctB }}</div>
               <div class="small text-white text-truncate mt-1">{{ vergelijking.B.naam }}</div>
             </div>
           </div>
@@ -391,7 +392,7 @@
           <p class="text-center text-muted small mb-3">
             <template v-if="vergelijking.favoriet"><strong class="text-white">{{ vergelijking.favoriet }}</strong> is favoriet.</template>
             <template v-else>Geen duidelijke favoriet.</template>
-            Alleen op huidig klassement: {{ pct(vergelijking.basisA) }} – {{ pct(1 - vergelijking.basisA) }}.
+            Alleen op huidig klassement: {{ vergelijking.basisPctA }} – {{ vergelijking.basisPctB }}.
           </p>
 
           <div class="prognose-container">
@@ -436,7 +437,7 @@
           <h5 class="section-title mt-1"><i class="fa-solid fa-chart-line text-primary me-2"></i>Klassementsprognose</h5>
         </div>
         <span v-if="loading" class="spinner-border spinner-border-sm text-primary" role="status"></span>
-        <span v-else class="result-badge"><i class="fa-solid fa-circle-check"></i>API</span>
+        <span v-else-if="klassementResultaat && !error" class="result-badge"><i class="fa-solid fa-circle-check"></i>API</span>
       </div>
 
       <div v-if="loading && !klassementResultaat" class="text-center py-4">
@@ -465,7 +466,7 @@
       </div>
 
       <div v-if="error" class="alert alert-danger mt-3 small mb-0 bg-opacity-10 border-danger border-opacity-25 text-danger" role="alert">
-        <i class="fa-solid fa-triangle-exclamation me-1.5"></i> {{ error }}
+        <i class="fa-solid fa-triangle-exclamation me-1"></i> {{ error }}
       </div>
     </div>
 
@@ -489,7 +490,12 @@
 
       <!-- Gewonnen / verloren: kop en rijen gebruiken dezelfde grid (.wl-row) -->
       <div class="wl-table">
-        <div class="wl-row wl-head">
+        <div v-if="!weergegevenResultaten.length" class="empty-note">
+          Nog geen wedstrijden. Kies hierboven een speler om de resultaten te laden,
+          of <a href="#" class="empty-link" @click.prevent="toggleAlleenActief">toon alle rijen</a> om ze zelf in te vullen.
+        </div>
+
+        <div v-else class="wl-row wl-head">
           <span></span>
           <span class="wl-label win">GEWONNEN</span>
           <span class="wl-label loss">VERLOREN</span>
@@ -660,11 +666,15 @@ const PONG = (() => {
         if (verwachtBij(mid) < w) lo = mid;
         else hi = mid;
       }
-      const raw = (lo + hi) / 2;
+      // Bij 100% of 0% winst loopt de schatting naar het uiterste; begrens ze.
+      const raw = klem((lo + hi) / 2, -600, 600);
 
       // 22 wedstrijden => 78.6% vertrouwen; 42 => 87.5%.
       // Dit voorkomt dat een klein aantal uitslagen het model te hard laat springen.
-      const betrouwbaarheid = n / (n + 6);
+      // Onder de 8 wedstrijden wordt het vertrouwen extra (kwadratisch) afgebouwd: 3 gewonnen
+      // wedstrijden zeggen bijna niets over het niveau. Vanaf 8 wedstrijden verandert er niets.
+      const kleineSteekproef = n >= 8 ? 1 : Math.pow(n / 8, 2);
+      const betrouwbaarheid = (n / (n + 6)) * kleineSteekproef;
       const delta = klem(raw * betrouwbaarheid, -300, 300);
 
       return {
@@ -769,16 +779,26 @@ const { createApp, ref, computed, onMounted, watch } = Vue;
 
 createApp({
   setup() {
-    const selectedLeague = ref(localStorage.getItem('vttl_league') || '0');
-    const currentRanking = ref(localStorage.getItem('vttl_currentRanking') || 'E4');
+    // Opslag in de browser mag nooit de app doen crashen (privémodus, geblokkeerde opslag, kapotte JSON).
+    const opslag = {
+      get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+      set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* negeren */ } },
+      clear() { try { localStorage.clear(); } catch (e) { /* negeren */ } }
+    };
+    const leesJson = (k, standaard) => {
+      try { const r = opslag.get(k); return r ? JSON.parse(r) : standaard; } catch (e) { return standaard; }
+    };
+
+    const selectedLeague = ref(opslag.get('vttl_league') === '1' ? '1' : '0');
+    const currentRanking = ref(opslag.get('vttl_currentRanking') || 'E4');
     const loading = ref(false);
     const error = ref(null);
 
     const clubLijst = ref([]);
     const spelerLijst = ref([]);
-    const selectedProvince = ref(localStorage.getItem('vttl_province') || '');
-    const selectedClubObject = ref(JSON.parse(localStorage.getItem('vttl_clubObj') || 'null'));
-    const selectedSpelerId = ref(localStorage.getItem('vttl_spelerId') || '');
+    const selectedProvince = ref(opslag.get('vttl_province') || '');
+    const selectedClubObject = ref(leesJson('vttl_clubObj', null));
+    const selectedSpelerId = ref(opslag.get('vttl_spelerId') || '');
 
     const clubsLoading = ref(false);
     const spelersLoading = ref(false);
@@ -799,21 +819,28 @@ createApp({
       return ["B0", "B2", "B4", "B6", "C0", "C2", "C4", "C6", "D0", "D2", "D4", "D6", "E0", "E2", "E4", "E6", "NG"];
     });
 
-    const opgeslagenResultaten = localStorage.getItem('vttl_resultaten');
-    const initiëleResultaten = opgeslagenResultaten 
-      ? JSON.parse(opgeslagenResultaten) 
+    // Opgeslagen rijen enkel gebruiken als ze er geldig uitzien voor de gekozen competitie.
+    const opgeslagenResultaten = leesJson('vttl_resultaten', null);
+    const opgeslagenGeldig = Array.isArray(opgeslagenResultaten) && opgeslagenResultaten.length > 0 &&
+      opgeslagenResultaten.every(r => r && alleKlassementen.value.includes(r.ranking));
+    const initiëleResultaten = opgeslagenGeldig
+      ? opgeslagenResultaten.map(r => ({
+          ranking: r.ranking,
+          gewonnen: Math.max(0, Number(r.gewonnen) || 0),
+          verloren: Math.max(0, Number(r.verloren) || 0)
+        }))
       : standaardLijst.value.map(kl => ({ ranking: kl, gewonnen: 0, verloren: 0 }));
 
     const spelerResultaten = ref(initiëleResultaten);
     const klassementResultaat = ref(null);
 
-    watch(selectedLeague, (val) => localStorage.setItem('vttl_league', val));
-    watch(currentRanking, (val) => localStorage.setItem('vttl_currentRanking', val));
-    watch(selectedProvince, (val) => localStorage.setItem('vttl_province', val));
-    watch(selectedClubObject, (val) => localStorage.setItem('vttl_clubObj', JSON.stringify(val)));
-    watch(selectedSpelerId, (val) => localStorage.setItem('vttl_spelerId', val));
+    watch(selectedLeague, (val) => opslag.set('vttl_league', val));
+    watch(currentRanking, (val) => opslag.set('vttl_currentRanking', val));
+    watch(selectedProvince, (val) => opslag.set('vttl_province', val));
+    watch(selectedClubObject, (val) => opslag.set('vttl_clubObj', JSON.stringify(val)));
+    watch(selectedSpelerId, (val) => opslag.set('vttl_spelerId', val));
     watch(spelerResultaten, (val) => {
-      localStorage.setItem('vttl_resultaten', JSON.stringify(val, (k, v) => (k === 'vast' ? undefined : v)));
+      opslag.set('vttl_resultaten', JSON.stringify(val, (k, v) => (k === 'vast' ? undefined : v)));
     }, { deep: true });
 
     const rebouwStandaardRijen = () => {
@@ -853,8 +880,8 @@ createApp({
       const g = totaalGewonnen.value;
       const v = totaalVerloren.value;
       const totaal = g + v;
-      if (totaal === 0) return '0.0';
-      return ((g / totaal) * 100).toFixed(1);
+      if (totaal === 0) return '0,0';
+      return ((g / totaal) * 100).toFixed(1).replace('.', ',');
     });
 
     const toggleAlleenActief = () => {
@@ -889,12 +916,20 @@ createApp({
     // Invoer via het toetsenbord: rij vastzetten zodat ze niet verdwijnt als het getal op 0 komt.
     const pinRij = (item) => {
       item.vast = true;
+      // Negatieve of ongeldige getallen (kan via het toetsenbord) worden 0; een leeg veld laten we staan tijdens het typen.
+      for (const veld of ['gewonnen', 'verloren']) {
+        if (item[veld] === '' || item[veld] === null) continue;
+        const v = Number(item[veld]);
+        if (!Number.isFinite(v) || v < 0) item[veld] = 0;
+        else if (!Number.isInteger(v)) item[veld] = Math.floor(v);
+      }
       recalculate();
     };
 
     let holdInterval = null;
     let holdTimeout = null;
     const startHold = (item, veld, delta) => {
+      stopHold(); // nooit twee herhaal-timers tegelijk (anders blijft er één eeuwig doortellen)
       pasAan(item, veld, delta);
       holdTimeout = setTimeout(() => {
         holdInterval = setInterval(() => {
@@ -917,6 +952,10 @@ createApp({
       holdTimeout = null;
       holdInterval = null;
     };
+
+    // Veiligheidsnet: als de vinger/muis ergens anders loslaat of het venster focus verliest,
+    // moet het doortellen altijd stoppen.
+    const stopHoldGlobaal = () => stopHold();
 
     // ===== API / gegevens =====
     // De klassementsberekening zelf wordt NIET lokaal nagebouwd: voor het verwachte
@@ -1086,23 +1125,24 @@ createApp({
       const kandidaten = idKandidatenVan(speler);
       if (!kandidaten.length) throw new Error('Geen speler-ID gevonden');
 
-      let beste = null;
+      // De kandidaten staan in volgorde van betrouwbaarheid (id eerst). De eerste die echte
+      // wedstrijden oplevert wint. Zo kiezen we nooit per ongeluk de resultaten van een andere
+      // speler enkel omdat een tweede ID toevallig meer wedstrijden teruggeeft.
+      let terugval = null; // eerste geldige antwoord zonder bruikbare wedstrijden (speler zonder wedstrijden)
       for (const kandidaat of kandidaten) {
         try {
-          const sep = kandidaten.indexOf(kandidaat) === 0 ? '?' : '?';
           const data = await apiJson(
-            `https://ttcsintpauwels.be/api/frenoy/${selectedLeague.value}/players/${encodeURIComponent(kandidaat)}/results${sep}t=${Date.now()}`
+            `https://ttcsintpauwels.be/api/frenoy/${selectedLeague.value}/players/${encodeURIComponent(kandidaat)}/results?t=${Date.now()}`
           );
           const parsed = parseResultaten(data);
-          if (!beste || parsed.herkende > beste.herkende || (parsed.herkende === beste.herkende && parsed.rawCount > beste.rawCount)) {
-            beste = { ...parsed, kandidaat };
-          }
+          if (parsed.herkende > 0) return { ...parsed, kandidaat };
+          if (!terugval) terugval = { ...parsed, kandidaat };
         } catch (err) {
           console.warn('Resultaten-ID geprobeerd:', kandidaat, err);
         }
       }
-      if (!beste) throw new Error('Geen bruikbare resultaten gevonden voor deze speler.');
-      return beste;
+      if (!terugval) throw new Error('Geen bruikbare resultaten gevonden voor deze speler.');
+      return terugval;
     };
 
     const laadClubs = async () => {
@@ -1263,7 +1303,10 @@ createApp({
     const cmpSelecteerSpeler = async (z) => {
       z.resultaten = null; z.berekend = null; z.error = null;
       const id = z.spelerId;
-      if (!id) return;
+      // Elke keuze krijgt een nummer; een trager, ouder antwoord mag de nieuwere keuze niet overschrijven
+      // of de laadindicator te vroeg uitzetten.
+      const nr = z.verzoek = (z.verzoek || 0) + 1;
+      if (!id) { z.loadingResults = false; return; }
       z.loadingResults = true;
       try {
         const speler = cmpSpeler(z);
@@ -1277,11 +1320,11 @@ createApp({
           try { berekend = await haalBerekendKlassement(rankVan(speler), rijen); }
           catch (err) { console.error(err); }
         }
-        if (zelfdeId(z.spelerId, id)) { z.berekend = berekend; z.resultaten = rijen; }
+        if (z.verzoek === nr && zelfdeId(z.spelerId, id)) { z.berekend = berekend; z.resultaten = rijen; }
       } catch (err) {
         console.error(err);
-        if (zelfdeId(z.spelerId, id)) z.error = 'Kon de resultaten niet ophalen.';
-      } finally { z.loadingResults = false; }
+        if (z.verzoek === nr && zelfdeId(z.spelerId, id)) z.error = 'Kon de resultaten niet ophalen.';
+      } finally { if (z.verzoek === nr) z.loadingResults = false; }
     };
 
     const zijdeData = (z) => {
@@ -1296,7 +1339,19 @@ createApp({
     };
 
     const zelfdeSpeler = computed(() =>
-      !!compareA.value.spelerId && compareA.value.spelerId === compareB.value.spelerId);
+      !!compareA.value.spelerId && zelfdeId(compareA.value.spelerId, compareB.value.spelerId));
+
+    // Twee percentages die samen altijd precies 100% zijn (anders kan je 90% + 11% zien).
+    // Aan de uiteinden (onder 10%) tonen we één decimaal.
+    const pctPaar = (p) => {
+      const komma = (x, d) => x.toFixed(d).replace('.', ',') + '%';
+      if (Math.min(p, 1 - p) * 100 < 10) {
+        const a = Math.round(p * 1000) / 10;
+        return [komma(a, 1), komma(100 - a, 1)];
+      }
+      const a = Math.round(p * 100);
+      return [a + '%', (100 - a) + '%'];
+    };
 
     const vergelijking = computed(() => {
       if (zelfdeSpeler.value) return null;
@@ -1306,7 +1361,9 @@ createApp({
       const kansA = model.value.winkans(A.rank, A, B.rank, B);
       const basisA = model.value.basisKans(A.rank, B.rank);
       const favoriet = Math.abs(kansA - 0.5) < 0.02 ? null : (kansA > 0.5 ? A.naam : B.naam);
-      return { A, B, kansA, basisA, favoriet };
+      const [pctA, pctB] = pctPaar(kansA);
+      const [basisPctA, basisPctB] = pctPaar(basisA);
+      return { A, B, kansA, basisA, favoriet, pctA, pctB, basisPctA, basisPctB };
     });
 
     const wisselSpelers = () => {
@@ -1367,8 +1424,12 @@ createApp({
     };
 
     const switchLeague = async (league) => {
+      if (league === selectedLeague.value) return;
       resetCompare();
       selectedLeague.value = league;
+      error.value = null;
+      // Een klassement dat in de andere competitie niet bestaat (bv. F in Sporta) mag niet blijven hangen.
+      if (!alleKlassementen.value.includes(currentRanking.value)) currentRanking.value = 'E4';
       selectedProvince.value = '';
       selectedClubObject.value = null;
       selectedSpelerId.value = '';
@@ -1387,12 +1448,15 @@ createApp({
       spelerLijst.value = [];
       currentRanking.value = 'E4';
       klassementResultaat.value = null;
+      error.value = null;
       rebouwStandaardRijen();
-      localStorage.clear();
+      opslag.clear();
       recalculate();
     };
 
     onMounted(async () => {
+      ['mouseup', 'touchend', 'touchcancel', 'blur'].forEach(ev => window.addEventListener(ev, stopHoldGlobaal));
+      document.addEventListener('visibilitychange', stopHoldGlobaal);
       await laadClubs();
       if (selectedClubObject.value) {
         await laadSpelersVanClubSilent();
@@ -1443,6 +1507,7 @@ createApp({
       startHold,
       stopHold,
       resetAlles,
+      spelerIdVan,
       showCompare,
       compareA,
       compareB,

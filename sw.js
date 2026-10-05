@@ -3,12 +3,12 @@ const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './favicon.ico',
-  './favicon-32.png',
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-512.png',
   './apple-touch-icon.png',
+  './favicon.ico',
+  './favicon-32.png',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://unpkg.com/vue@3/dist/vue.global.js'
@@ -44,11 +44,13 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Cache eerst voor overige bestanden
+  // Cache eerst voor overige bestanden (enkel geslaagde antwoorden bewaren)
   e.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(req, copy));
+      if (res && (res.ok || res.type === 'opaque')) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy));
+      }
       return res;
     }))
   );
